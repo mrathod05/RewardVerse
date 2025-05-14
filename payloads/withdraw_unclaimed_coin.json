@@ -1,0 +1,5 @@
+{
+  "function_id": "0x502ec0500c9262a3c19afdffabc71e783252f32b8f5907f693e079fc5a16793a::RewardVerse::withdraw_unclaimed_coin",
+  "type_args": [],
+  "args": []
+}
