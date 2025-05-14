@@ -1,3 +1,5 @@
+aptos move build-publish-payload   --named-addresses multisig=0x6533e2d10ea493c62432863cd179ae3373bdc0d39af226632d9bcc83164fca12   --json-output-file publish.
+
 # 🏆 RewardVerse - Aptos Move Smart Contract Testing Guide
 
 This document provides a comprehensive guide for testing the RewardVerse smart contract on the Aptos blockchain using the Command Line Interface (CLI).
@@ -146,7 +148,6 @@ Execute a transaction after required approvals:
 ```bash
 # Execute the approved transaction
 aptos multisig execute --multisig-address $multisig_addr --profile admin --assume-yes
-```an_be_executed --args address:"$multisig_addr" u64:1 --profile admin
 ```
 
 ### Verifying a Proposal

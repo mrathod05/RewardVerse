@@ -1,5 +1,5 @@
 {
-  "function_id": "0x4bbd9abcab2cce4c8d056cb08a381c74ee6ee9099bd2182258f00cb921612851::RewardVerse::add_user",
+  "function_id": "0x6533e2d10ea493c62432863cd179ae3373bdc0d39af226632d9bcc83164fca12::RewardVerseV1::add_user",
   "type_args": [],
   "args": [
     { "type": "address", "value": "0x82bb6290772ce549f0f250b2893c677baa0d1e93cd6706b6f90b55aa843c713f" }

@@ -4,9 +4,7 @@ version = "1.0.0"
 authors = ["Meet Rathod"]
 
 [addresses]
-rewardverse= "0x4bbd9abcab2cce4c8d056cb08a381c74ee6ee9099bd2182258f00cb921612851"
-admin = "0x36891e4a7f49c21b1fa4644112c1cdadf6a88c490e4b6d847d85bf6a24af3be2"
-multisig = "0x502ec0500c9262a3c19afdffabc71e783252f32b8f5907f693e079fc5a16793a"
+multisig = "0x6533e2d10ea493c62432863cd179ae3373bdc0d39af226632d9bcc83164fca12"
 
 [dev-addresses]
 
