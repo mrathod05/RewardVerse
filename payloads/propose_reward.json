@@ -1,8 +1,8 @@
 {
-  "function_id": "0x502ec0500c9262a3c19afdffabc71e783252f32b8f5907f693e079fc5a16793a::RewardVerse::propose_reward",
+  "function_id": "0x4bbd9abcab2cce4c8d056cb08a381c74ee6ee9099bd2182258f00cb921612851::RewardVerse::propose_reward",
   "type_args": [],
   "args": [
-    { "type": "address", "value": "0x36891e4a7f49c21b1fa4644112c1cdadf6a88c490e4b6d847d85bf6a24af3be2" },
+    { "type": "address", "value": "0x82bb6290772ce549f0f250b2893c677baa0d1e93cd6706b6f90b55aa843c713f" },
     { "type": "u64", "value": 1747144781 },
     { "type": "u64", "value": 1000 }
   ]

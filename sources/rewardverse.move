@@ -1,4 +1,4 @@
-module rewardverse::RewardVerse {
+module rewardverse::RewardVerseV1 {
     use std::signer::address_of;
     use aptos_std::table::{Self,Table};
 
@@ -14,8 +14,8 @@ module rewardverse::RewardVerse {
     const DEFAULT_MINT: u64 = 10000;
 
     /// Error codes
-    const E_REGISTRY_NOT_INITIALIZED:u64 = 0;
-    const E_NOT_DEPLOYER:u64 = 1;
+    const E_REGISTRY_NOT_INITIALIZED: u64 = 0;
+    const E_NOT_DEPLOYER: u64 = 1;
     const E_REGISTRY_ALREADY_EXIST: u64 = 2;
     const E_NOT_MINTED_PROPERLY:u64 = 3;
     const E_USER_NOT_EXIST: u64 = 4;
@@ -23,13 +23,11 @@ module rewardverse::RewardVerse {
     const E_INSUFFICIENT_BALANCE: u64 = 6;
     const E_REWARD_NOT_EXIST: u64 = 7;
     const E_REWARD_IS_EXPIRED: u64 = 8;
+    const E_UNAUTHORIZED: u64 = 9;
 
 
     /// Define coin struct
-    struct Coin<phantom CoinType> has store {
-        /// Amount of coin this address has.
-        value: u64,
-    }
+    struct RVC has store {}
 
     /// Define coin registry
     struct RewardVerseRegistry has key {
@@ -51,10 +49,11 @@ module rewardverse::RewardVerse {
     }
 
     /// Create token
-    fun init_module<CoinType>(deployer: &signer){
-        let multisig_addr= address_of(deployer);
+    fun init_module(deployer: &signer){
+        let deployer_addr= address_of(deployer);
+        assert_is_deployer(deployer_addr);
 
-        managed_coin::initialize<CoinType>(
+        managed_coin::initialize<RVC>(
             deployer,
             b"Reward Verse Coin",
             b"RVC",
@@ -78,23 +77,25 @@ module rewardverse::RewardVerse {
             rewards: table::new(),
         });
 
-        register_coin<CoinType>(&res_signer);
+        register_coin(&res_signer);
     }
 
     /// Register the custom coin
-    public entry fun register_coin<CoinType>(user: &signer){
-        managed_coin::register<CoinType>(user);
+    public entry fun register_coin(user: &signer){
+        managed_coin::register<RVC>(user);
     }
 
-    public entry fun mint_coin<CoinType>(deployer: &signer, amount: u64) {
-        let multisig_addr = address_of(deployer);
+    public entry fun mint_coin(deployer: &signer, amount: u64) {
+        let deployer_addr = address_of(deployer);
+        assert_is_deployer(deployer_addr);
 
         let resource_addr = get_resource_address();
-        managed_coin::mint<CoinType>(deployer, resource_addr, amount);
+        managed_coin::mint<RVC>(deployer, resource_addr, amount);
     }
 
     public entry fun add_user(admin:&signer, recipient_addr: address) acquires RewardVerseRegistry {
-        let multisig_addr = address_of(admin);
+        let admin_addr = address_of(admin);
+        assert_is_unauthorized(admin_addr);
 
         let resource_addr = get_resource_address();
         let registry = borrow_global_mut<RewardVerseRegistry>(resource_addr);
@@ -106,7 +107,8 @@ module rewardverse::RewardVerse {
     }
 
     public entry fun remove_user(admin:&signer, recipient_addr: address) acquires RewardVerseRegistry {
-        let multisig_addr = address_of(admin);
+        let admin_addr = address_of(admin);
+        assert_is_unauthorized(admin_addr);
 
         let resource_addr = get_resource_address();
 
@@ -117,11 +119,12 @@ module rewardverse::RewardVerse {
         registry.whitelisted_user.remove(recipient_addr);
     }
 
-    public entry fun propose_reward<CoinType>(admin: &signer, recipient_addr:address, expired_time: u64, amount: u64) acquires RewardVerseRegistry, RewardRegistry {
-        let multisig_addr = address_of(admin);
+    public entry fun propose_reward(admin: &signer, recipient_addr:address, expired_time: u64, amount: u64) acquires RewardVerseRegistry, RewardRegistry {
+        let admin_addr = address_of(admin);
+        assert_is_unauthorized(admin_addr);
 
         let resource_addr = get_resource_address();
-        assert_sufficient_balance<CoinType>(resource_addr, amount);
+        assert_sufficient_balance(resource_addr, amount);
 
         let registry = borrow_global_mut<RewardVerseRegistry>(resource_addr);
         let found = registry.whitelisted_user.contains(recipient_addr);
@@ -142,7 +145,7 @@ module rewardverse::RewardVerse {
         reward_registry.rewards.upsert(new_counter, reward);
     }
 
-    public entry fun claim_reward<CoinType>(recipient: &signer, reward_id: u64) acquires RewardVerseRegistry, RewardRegistry {
+    public entry fun claim_reward(recipient: &signer, reward_id: u64) acquires RewardVerseRegistry, RewardRegistry {
         let recipient_addr = address_of(recipient);
         let resource_addr = get_resource_address();
 
@@ -160,17 +163,18 @@ module rewardverse::RewardVerse {
         assert_expired_reward(reward.expired_time);
 
         let amount = reward.amount;
-        assert_sufficient_balance<CoinType>(resource_addr, amount);
+        assert_sufficient_balance(resource_addr, amount);
 
         let resource_signer = create_signer_with_capability(&registry.resource_signer_cap);
-        coin::transfer<CoinType>(&resource_signer, recipient_addr, amount);
+        coin::transfer<RVC>(&resource_signer, recipient_addr, amount);
 
         reward.is_claimed = true;
         reward_registry.total_reward_amount -=amount;
     }
 
-    public entry fun withdraw_unclaimed_coin<CoinType>(admin: &signer) acquires RewardRegistry, RewardVerseRegistry {
-        let multisig_addr = address_of(admin);
+    public entry fun withdraw_unclaimed_coin(deployer: &signer) acquires RewardRegistry, RewardVerseRegistry {
+        let deployer_addr = address_of(deployer);
+        assert_is_deployer(deployer_addr);
 
         let resource_addr = get_resource_address();
         assert_registry_not_exists(resource_addr);
@@ -189,7 +193,7 @@ module rewardverse::RewardVerse {
                 let reward = reward_registry.rewards.borrow_mut(i);
                 if (reward.expired_time < timestamp::now_seconds() && !reward.is_claimed) {
                     let amount = reward.amount;
-                    coin::transfer<CoinType>(&resource_signer, multisig_addr, amount);
+                    coin::transfer<RVC>(&resource_signer, deployer_addr, amount);
                     reward_registry.total_reward_amount -= amount;
                     reward.amount = 0;
                 }
@@ -202,8 +206,8 @@ module rewardverse::RewardVerse {
     // View
 
     #[view]
-    public fun get_balance<CoinType>(addr: address) :u64 {
-        coin::balance<CoinType>(addr)
+    public fun get_balance(addr: address) :u64 {
+        coin::balance<RVC>(addr)
     }
 
     #[view]
@@ -223,8 +227,12 @@ module rewardverse::RewardVerse {
         assert!(addr == @rewardverse, E_NOT_DEPLOYER);
     }
 
-    public fun assert_sufficient_balance<CoinInfo>(addr: address, amount: u64) {
-        assert!(get_balance<CoinInfo>(addr) >= amount, E_INSUFFICIENT_BALANCE);
+    public fun assert_is_unauthorized(addr: address) {
+        assert!(addr == @rewardverse || addr == @admin , E_UNAUTHORIZED);
+    }
+
+    public fun assert_sufficient_balance(addr: address, amount: u64) {
+        assert!(get_balance(addr) >= amount, E_INSUFFICIENT_BALANCE);
     }
 
     public fun assert_registry_not_exists(addr: address)  {
@@ -256,18 +264,16 @@ module rewardverse::RewardVerse {
     #[test_only]
     use aptos_framework::account::create_account_for_test;
 
-    #[test_only]
-    struct FakeCoin {}
 
     #[test_only]
-    public fun init_coin_registry<FakeCoin>(framework: &signer, multisig: &signer) {
+    public fun init_coin_registry(framework: &signer, multisig: &signer) {
         create_account_for_test(address_of(multisig));
         coin::create_coin_conversion_map(framework);
         timestamp::set_time_has_started_for_testing(framework);
         let current_time = 10000000; // starting timestamp in microseconds
         timestamp::update_global_time_for_test_secs(current_time);
 
-        managed_coin::initialize<FakeCoin>(
+        managed_coin::initialize<RVC>(
             multisig,
             b"Fake Verse Coin",
             b"FVC",
@@ -275,7 +281,7 @@ module rewardverse::RewardVerse {
             false
         );
 
-        assert!(coin::is_coin_initialized<FakeCoin>(), 0);
+        assert!(coin::is_coin_initialized<RVC>(), 0);
 
         let (res_signer, res_signer_cap) = create_multisig_resource_account(multisig);
 
@@ -293,38 +299,38 @@ module rewardverse::RewardVerse {
             rewards: table::new(),
         });
 
-        register_coin<FakeCoin>(&res_signer);
+        register_coin(&res_signer);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_registry(framework: &signer, multisig: &signer) {
-        init_coin_registry<FakeCoin>(framework, multisig);
+        init_coin_registry(framework, multisig);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_mint_coin(framework: &signer, multisig: &signer) {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
-        assert!(get_balance<FakeCoin>(
+        assert!(get_balance(
             get_resource_address())
             == DEFAULT_MINT , E_NOT_MINTED_PROPERLY);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_add_user(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let recipient_addr = @0x41;
         add_user(multisig, recipient_addr);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
-    #[expected_failure(abort_code = E_NOT_DEPLOYER)]
-    fun test_add_user_by_non_multisig(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+    #[expected_failure(abort_code = E_UNTHOTIZED)]
+    fun test_add_user_by_non_admin(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let not_multisig = create_account_for_test(@0x40);
         let recipient_addr = @0x41;
@@ -334,8 +340,8 @@ module rewardverse::RewardVerse {
     #[test(framework = @0x1, multisig= @rewardverse)]
     #[expected_failure(abort_code = E_USER_ALREADY_EXIST)]
     fun test_add_duplicate_user(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, 100);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, 100);
 
         let recipient_addr = @0x41;
 
@@ -345,8 +351,8 @@ module rewardverse::RewardVerse {
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_remove_user(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let recipient_addr = @0x41;
 
@@ -357,8 +363,8 @@ module rewardverse::RewardVerse {
     #[test(framework = @0x1, multisig= @rewardverse)]
     #[expected_failure(abort_code = E_USER_NOT_EXIST)]
     fun test_remove_non_exist_user(framework: &signer, multisig: &signer) acquires RewardVerseRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let recipient_addr = @0x41;
 
@@ -367,8 +373,8 @@ module rewardverse::RewardVerse {
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_propose_reward(framework: &signer, multisig: &signer) acquires RewardVerseRegistry, RewardRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let recipient_addr = @0x41;
 
@@ -376,41 +382,41 @@ module rewardverse::RewardVerse {
         let expired_time = timestamp::now_seconds() + 30*60;
         let reward_amount = DEFAULT_MINT;
 
-        propose_reward<FakeCoin>(multisig, recipient_addr, expired_time, reward_amount);
+        propose_reward(multisig, recipient_addr, expired_time, reward_amount);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_claim_reward(framework: &signer, multisig: &signer) acquires RewardVerseRegistry, RewardRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
 
         let recipient_addr = @0x41;
         let recipient = create_account_for_test(recipient_addr);
-        register_coin<FakeCoin>(&recipient);
+        register_coin(&recipient);
 
         add_user(multisig, recipient_addr);
         let expired_time = timestamp::now_seconds() + 30*60;
         let reward_amount = 1000;
 
-        propose_reward<FakeCoin>(multisig, recipient_addr, expired_time, reward_amount);
-        claim_reward<FakeCoin>(&recipient, 1);
+        propose_reward(multisig, recipient_addr, expired_time, reward_amount);
+        claim_reward(&recipient, 1);
     }
 
     #[test(framework = @0x1, multisig= @rewardverse)]
     fun test_withdraw_unclaimed_reward(framework: &signer, multisig: &signer) acquires RewardVerseRegistry, RewardRegistry {
-        init_coin_registry<FakeCoin>(framework, multisig);
-        mint_coin<FakeCoin>(multisig, DEFAULT_MINT);
-        register_coin<FakeCoin>(multisig);
+        init_coin_registry(framework, multisig);
+        mint_coin(multisig, DEFAULT_MINT);
+        register_coin(multisig);
 
         let recipient_addr = @0x41;
         let recipient = create_account_for_test(recipient_addr);
-        register_coin<FakeCoin>(&recipient);
+        register_coin(&recipient);
 
         add_user(multisig, recipient_addr);
         let expired_time = timestamp::now_seconds() + 30*60;
         let reward_amount = 1000;
 
-        propose_reward<FakeCoin>(multisig, recipient_addr, expired_time, reward_amount);
-        withdraw_unclaimed_coin<FakeCoin>(multisig);
+        propose_reward(multisig, recipient_addr, expired_time, reward_amount);
+        withdraw_unclaimed_coin(multisig);
     }
 }
