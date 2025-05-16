@@ -266,14 +266,5 @@ For testing the complete workflow, follow this sequence:
 - [ ] **Add Monitoring**: Set up alerts for contract activities
 - [ ] **Implement Event Tracking**: Add event logging for better transparency
 - [ ] **Security Audit**: Have the contract audited before mainnet deployment
-- [ ] **Documentation**: Create comprehensive user guides
-
-## 🤝 Need Help?
-
-Join our developer community:
-- Discord: [RewardVerse Community](https://discord.gg/rewardverse)
-- GitHub: [RewardVerse Repository](https://github.com/rewardverse)
-
----
 
 *This guide is continuously updated. Last revised: May 15, 2025*
